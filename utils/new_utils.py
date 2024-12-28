@@ -11,6 +11,8 @@ def plot_tsne(img_features, text_features, filename="tsne_plot.pdf"):
     # Combine image and text features
     combined_features = np.concatenate((img_features_np, text_features_np), axis=0)
     
+
+    #new edit
     # Perform t-SNE
     tsne = TSNE(n_components=2, random_state=0)
     tsne_results = tsne.fit_transform(combined_features)

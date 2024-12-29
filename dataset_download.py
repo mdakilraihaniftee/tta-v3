@@ -336,7 +336,7 @@ def download_imagenet_c_noise():
     else:
         print(f"Failed to download the file. HTTP status code: {response.status_code}")
 
-download_imagenet_a_flag = False
+download_imagenet_a_flag = True
 if download_imagenet_a_flag:
     download_imagenet_a()
     extract_imagenet_a()
@@ -359,7 +359,7 @@ if download_imagenet_c_noise_flag:
 
 
 
-download_imagenet_c_blur_flag = True
+download_imagenet_c_blur_flag = False
 if download_imagenet_c_blur_flag:
     download_imagenet_c_blur()
     extract_imagenet_c_blur()

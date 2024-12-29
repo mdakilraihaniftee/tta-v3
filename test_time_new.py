@@ -35,7 +35,7 @@ def evaluate(description):
     # setup wandb logging
     wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
-    information = "wrong pred entropy"
+    information = "without_bn"
     wandb.run.name += "-" + information
 
     # add current bangladesh time to the run name
@@ -256,6 +256,6 @@ if __name__ == '__main__':
         print("WANDB_API_KEY not found in environment variables.")
     # ========================================================================== 
     
-    wandb.init(project="new_phase_tta", dir="output")
+    wandb.init(project="tta-v2", dir="output")
 
     evaluate('"Evaluation.')

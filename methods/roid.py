@@ -12,6 +12,7 @@ from utils.losses import Entropy, SymmetricCrossEntropy, SoftLikelihoodRatio
 from utils.misc import ema_update_model
 
 
+
 @torch.no_grad()
 def update_model_probs(x_ema, x, momentum=0.9):
     return momentum * x_ema + (1 - momentum) * x

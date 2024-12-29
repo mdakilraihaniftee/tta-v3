@@ -336,7 +336,11 @@ def download_imagenet_c_noise():
     else:
         print(f"Failed to download the file. HTTP status code: {response.status_code}")
 
+<<<<<<< HEAD
 download_imagenet_a_flag = False
+=======
+download_imagenet_a_flag = True
+>>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
 if download_imagenet_a_flag:
     download_imagenet_a()
     extract_imagenet_a()
@@ -352,14 +356,22 @@ if download_imagenet_sketch_flag:
     extract_imagenet_sketch()
 
 
+<<<<<<< HEAD
 download_imagenet_c_noise_flag = True
+=======
+download_imagenet_c_noise_flag = False
+>>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
 if download_imagenet_c_noise_flag:
     download_imagenet_c_noise()
     extract_imagenet_c_noise()
 
 
 
+<<<<<<< HEAD
 download_imagenet_c_blur_flag = True
+=======
+download_imagenet_c_blur_flag = False
+>>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
 if download_imagenet_c_blur_flag:
     download_imagenet_c_blur()
     extract_imagenet_c_blur()

@@ -352,7 +352,7 @@ if download_imagenet_sketch_flag:
     extract_imagenet_sketch()
 
 
-download_imagenet_c_noise_flag = False
+download_imagenet_c_noise_flag = True
 if download_imagenet_c_noise_flag:
     download_imagenet_c_noise()
     extract_imagenet_c_noise()

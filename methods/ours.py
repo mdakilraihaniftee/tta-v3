@@ -3,13 +3,6 @@ from copy import deepcopy
 
 import torch
 import torch.nn as nn
-import torch.jit
-import torchvision
-import math
-from einops import rearrange
-
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 
@@ -19,6 +12,7 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
+    MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
@@ -29,16 +23,8 @@ from utils.misc import (
     confidence_condition,
     ema_update_model,
     init_pqs,
-    plot_tsne,
     pop_min_from_pqs,
     update_pqs,
-    
-)
-
-from utils.new_utils import ( 
-    confident_wrong_pred,
-    confident_correct_pred,
-    plot_random_images
 )
 from utils.registry import ADAPTATION_REGISTRY
 
@@ -60,35 +46,8 @@ class Ours(TTAMethod):
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
 
-
-
-
-        #deyo new
-
-        #new deyo loss
-        self.ent = Entropy()
-        self.reweight_ent = cfg.DEYO.REWEIGHT_ENT
-        self.reweight_plpd = cfg.DEYO.REWEIGHT_PLPD
-
-        self.plpd_threshold = cfg.DEYO.PLPD
-        self.deyo_margin = cfg.DEYO.MARGIN * math.log(num_classes)
-        self.margin_e0 = cfg.EATA.MARGIN_E0 * math.log(num_classes)
-
-        self.aug_type = cfg.DEYO.AUG_TYPE
-        self.occlusion_size = cfg.DEYO.OCCLUSION_SIZE
-        self.row_start = cfg.DEYO.ROW_START
-        self.column_start = cfg.DEYO.COLUMN_START
-        self.patch_len = cfg.DEYO.PATCH_LEN
-
-
-
-
-
-
-
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
-        self.tta_transform_soft = get_tta_transforms(self.img_size, cotta_augs=False)
 
         # setup loss functions
         self.symmetric_cross_entropy = SymmetricCrossEntropy()
@@ -135,7 +94,7 @@ class Ours(TTAMethod):
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.001
+            self.backbone_t2.parameters(), 0.01
         )
 
         # setup student model
@@ -144,7 +103,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s)
+        self.configure_model(self.model_s, bn=True)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -275,7 +234,7 @@ class Ours(TTAMethod):
                 count += 1
         return count
 
-    def loss_calculation(self, xx, y=None):
+    def loss_calculation(self, x, y=None):
         """
         Calculate the loss for the current batch.
 
@@ -287,17 +246,14 @@ class Ours(TTAMethod):
             Tensor: Student model loss
             Tensor: T2 model loss
         """
-        #new
-        
-        x = xx[0]
+        x = x[0]
         x_aug = self.tta_transform(x)
-        x_aug_soft = self.tta_transform_soft(x)
 
+        # get the outputs from the models
         outputs_s = self.model_s(x)
         outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
-        outputs_stu_aug_simple =self.model_s(x_aug_soft)
 
         comb_t1_t2 = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
         comb_t1_t2_stu = torch.nn.functional.softmax(
@@ -334,16 +290,6 @@ class Ours(TTAMethod):
         error_comb_t1_s = 1 - total_correct_comb_t1_s / x.size(0)
         error_comb_t2_s = 1 - total_correct_comb_t2_s / x.size(0)
 
-        
-        
-        
-        avg_ent_wrong_pred = confident_wrong_pred(outputs_s, y)
-        avg_ent_correct_pred = confident_correct_pred(outputs_s, y)
-        ent_o, ent_prime, acc_before_after_aug = self.plpd_augmentation_result(xx)
-        ent_o_sim, ent_prime_sim, acc_before_after_aug_sim = self.simple_augmentation_result(outputs_s, outputs_stu_aug_simple)
-
-        
-        
         # actual accuracy of three models
         wandb.log(
             {
@@ -354,24 +300,15 @@ class Ours(TTAMethod):
                 "error_comb_t1_t2_stu": error_comb_t1_t2_stu,
                 "error_comb_t1_s": error_comb_t1_s,
                 "error_comb_t2_s": error_comb_t2_s,
-                "wrong_pred_entropy": avg_ent_wrong_pred,
-                "correct_pred_entropy": avg_ent_correct_pred,
-                "before_and _after_aug_pred_similarity": acc_before_after_aug,
-                "entropy output without aug": ent_o,
-                "entropy_output_prime_after_aug": ent_prime,
-                "before_and _after_aug_pred_similarity_sim": acc_before_after_aug_sim,
-                "entropy output without aug_sim": ent_o_sim,
-                "entropy_output_prime_after_aug_sim": ent_prime_sim
             }
         )
 
-
-        
-
         # final output
-        outputs = torch.nn.functional.softmax(outputs_s.detach() + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
 
-        
+        wandb.log(
+            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
+        )
 
         # student model loss
         loss_self_training = 0.0
@@ -393,6 +330,7 @@ class Ours(TTAMethod):
         wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
+        entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
 
@@ -415,16 +353,13 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
-        if self.c % 20 == 0:
-            #logger.info(f"Number of empty queues: {self.is_pqs_full()}")
-            # print(features_t1.shape, prototypes.shape, y.shape)
-            # plot_tsne(features_t1, prototypes, y)
-            indices = plot_random_images(x,"a.png")
-            plot_random_images(x_aug_soft,"b.png", indices)
+        if self.c % 200 == 0:
+            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
+
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
@@ -449,7 +384,7 @@ class Ours(TTAMethod):
             # loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 10 * mse_t2
+            # loss_t2 += 10 * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
@@ -464,11 +399,13 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            # loss_stu += l2_sp
+            loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
             # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
+
+        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
@@ -582,8 +519,7 @@ class Ours(TTAMethod):
                 if bn is None or bn:
                     m.requires_grad_(True)
             elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
-                if bn is None or bn:
-                    m.requires_grad_(True)
+                m.requires_grad_(True if bn else False)
             else:
                 m.requires_grad_(False if bn else True)
 
@@ -756,80 +692,3 @@ class Ours(TTAMethod):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
-
-
-
-
-
-    def plpd_augmentation_result(self, x):
-        #print("here i am")
-        """Forward and adapt model on batch of data.
-        Measure entropy of the model prediction, take gradients, and update params.
-        """
-        imgs_test = x[0]
-        outputs = self.model_s(imgs_test)
-
-        entropys = self.ent(outputs)
-        filter_ids_1 = torch.where((entropys < self.deyo_margin))
-        entropys = entropys[filter_ids_1]
-        
-
-        #
-        # x_prime = imgs_test[filter_ids_1]
-        
-        x_prime = imgs_test #new
-        x_prime = x_prime.detach()
-        if self.aug_type == 'occ':
-            first_mean = x_prime.view(x_prime.shape[0], x_prime.shape[1], -1).mean(dim=2)
-            final_mean = first_mean.unsqueeze(-1).unsqueeze(-1)
-            occlusion_window = final_mean.expand(-1, -1, self.occlusion_size, self.occlusion_size)
-            x_prime[:, :, self.row_start:self.row_start + self.occlusion_size, self.column_start:self.column_start + self.occlusion_size] = occlusion_window
-        elif self.aug_type == 'patch':
-            resize_t = torchvision.transforms.Resize(((imgs_test.shape[-1] // self.patch_len) * self.patch_len, (imgs_test.shape[-1] // self.patch_len) * self.patch_len))
-            resize_o = torchvision.transforms.Resize((imgs_test.shape[-1], imgs_test.shape[-1]))
-            x_prime = resize_t(x_prime)
-            x_prime = rearrange(x_prime, 'b c (ps1 h) (ps2 w) -> b (ps1 ps2) c h w', ps1=self.patch_len, ps2=self.patch_len)
-            perm_idx = torch.argsort(torch.rand(x_prime.shape[0], x_prime.shape[1]), dim=-1)
-            x_prime = x_prime[torch.arange(x_prime.shape[0]).unsqueeze(-1), perm_idx]
-            x_prime = rearrange(x_prime, 'b (ps1 ps2) c h w -> b c (ps1 h) (ps2 w)', ps1=self.patch_len, ps2=self.patch_len)
-            x_prime = resize_o(x_prime)
-        elif self.aug_type == 'pixel':
-            x_prime = rearrange(x_prime, 'b c h w -> b c (h w)')
-            x_prime = x_prime[:, :, torch.randperm(x_prime.shape[-1])]
-            x_prime = rearrange(x_prime, 'b c (ps1 ps2) -> b c ps1 ps2', ps1=imgs_test.shape[-1], ps2=imgs_test.shape[-1])
-
-        with torch.no_grad():
-            outputs_prime = self.model_s(x_prime)
-
-        logits = torch.nn.functional.softmax(outputs, dim=1)
-        logits_prime = torch.nn.functional.softmax(outputs_prime, dim=1)
-    
-        # Identify correct predictions
-        correct = torch.argmax(logits, dim=1) == torch.argmax(logits_prime, dim=1)
-        
-        ent_o = self.ent(outputs)
-        ent_prime = self.ent(outputs_prime)
-        #print(x[0].size(0))
-        return entropys.mean().item(), ent_prime.mean().item(), correct.sum() / x[0].size(0)
-
-        
-    def simple_augmentation_result(self, outputs, outputs_prime):
-        #print("here i am")
-        """Forward and adapt model on batch of data.
-        Measure entropy of the model prediction, take gradients, and update params.
-        """
-
-
-        logits = torch.nn.functional.softmax(outputs, dim=1)
-        logits_prime = torch.nn.functional.softmax(outputs_prime, dim=1)
-    
-        # Identify correct predictions
-        correct = torch.argmax(logits, dim=1) == torch.argmax(logits_prime, dim=1)
-        
-        ent_o = self.ent(outputs)
-        ent_prime = self.ent(outputs_prime)
-        #print(x[0].size(0))
-        return ent_o.mean().item(), ent_prime.mean().item(), correct.sum() / outputs.size(0)
-
-        
-        

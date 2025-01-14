@@ -1,15 +1,9 @@
 import torch
-<<<<<<< HEAD
-import numpy as np
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-
-=======
 import torch.nn as nn
 import torch.jit
 import torchvision
 import math
-from einops import rearrange
+#from einops import rearrange
 
 
 
@@ -22,7 +16,6 @@ from utils.losses import (
     Entropy
 )
 ent = Entropy()
->>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
 def plot_tsne(img_features, text_features, filename="tsne_plot.pdf"):
     # Detach tensors and convert to numpy arrays
     img_features_np = img_features.detach().cpu().numpy()
@@ -31,11 +24,8 @@ def plot_tsne(img_features, text_features, filename="tsne_plot.pdf"):
     # Combine image and text features
     combined_features = np.concatenate((img_features_np, text_features_np), axis=0)
     
-<<<<<<< HEAD
-=======
 
     #new edit
->>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
     # Perform t-SNE
     tsne = TSNE(n_components=2, random_state=0)
     tsne_results = tsne.fit_transform(combined_features)
@@ -51,22 +41,14 @@ def plot_tsne(img_features, text_features, filename="tsne_plot.pdf"):
     plt.savefig(filename)
     plt.show()
 
-<<<<<<< HEAD
-def plot_random_images( x, save_path="random_images.png"):
-=======
 def plot_random_images( x, save_path="random_images.png", indices = None):
->>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
         """
         Plots 12 random images from the given list `x` where each image is in the shape (1, 3, 224, 224).
         Saves the plotted images to the specified path.
         """
         # Select 12 random indices from the list `x`
-<<<<<<< HEAD
-        indices = np.random.choice(len(x), size=12, replace=False)
-=======
         if indices is None:
             indices = np.random.choice(len(x), size=12, replace=False)
->>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332
         selected_images = [x[i] for i in indices]
 
         # Set up the matplotlib figure
@@ -87,9 +69,6 @@ def plot_random_images( x, save_path="random_images.png", indices = None):
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(save_path)
-<<<<<<< HEAD
-        plt.show()
-=======
         plt.show()
 
         return indices
@@ -141,4 +120,3 @@ def confident_correct_pred(outputs, y):
     #print(f"Average entropy of correct predictions: {avg_entropy}")
     return avg_entropy
 
->>>>>>> d174a543d4d4f8bae0c0c46035b00c518c79a332

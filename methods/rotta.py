@@ -40,7 +40,7 @@ class RoTTA(TTAMethod):
         # create the test-time transformations
         self.transform = get_tta_transforms(self.img_size)
 
-    def loss_calculation(self):
+    def loss_calculation(self, x):
         self.model.train()
         self.model_ema.train()
         # get memory data

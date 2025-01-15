@@ -9,7 +9,7 @@ class Source(TTAMethod):
         super().__init__(cfg, model, num_classes)
 
     @forward_decorator
-    def forward_and_adapt(self, x):
+    def forward_and_adapt(self, x, y=None):
         imgs_test = x[0]
         return self.model(imgs_test)
 

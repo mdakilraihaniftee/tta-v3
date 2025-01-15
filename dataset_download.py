@@ -10,19 +10,18 @@ import os
 
 import zipfile
 import os
-
 def download_imagenet_sketch():
     # Google Drive link
     google_drive_link = "https://drive.usercontent.google.com/download?id=1Mj0i5HBthqH1p_yeXzsg22gZduvgoNeA&export=download&authuser=0"
 
     # Extract the file ID from the link
-    file_id = google_drive_link.split('/d/')[1].split('/')[0]
+    file_id = google_drive_link.split('?id=')[1].split('&')[0]
 
     # Generate a direct download link
     direct_link = f"https://drive.google.com/uc?id={file_id}"
 
     # Directory where you want to save the file
-    save_dir = '../test-time-adaptation/data/'  # Change this to your desired directory
+    save_dir = '/scratch/mi8uu/mrm/test-time-adaptation/data/'  # Change this to your desired directory
 
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -36,7 +35,7 @@ def download_imagenet_sketch():
     print(f"Downloaded file saved as: {output_file}")
 
 def extract_imagenet_sketch():
-    save_dir = '../test-time-adaptation/data/'
+    save_dir = '/scratch/mi8uu/mrm/test-time-adaptation/data/'
     # Full path for the output file
     output_file = os.path.join(save_dir, "imagenet_sketch.zip")  # Adjust file name as needed
 
@@ -47,7 +46,7 @@ def extract_imagenet_sketch():
 
 def extract_imagenet_a():
     # Directory where the downloaded file is saved
-    save_dir = '../test-time-adaptation/data/'
+    save_dir = '/scratch/mi8uu/mrm/test-time-adaptation/data/'
 
     # Full path for the `.tar` file
     output_file = os.path.join(save_dir, "imagenet-a.tar")  # Adjust file name as needed
@@ -63,7 +62,7 @@ def download_imagenet_a():
     direct_download_link = "https://people.eecs.berkeley.edu/~hendrycks/imagenet-a.tar"  # Replace with your actual URL
 
     # Directory where you want to save the file
-    save_dir = '../test-time-adaptation/data/'  # Change this to your desired directory
+    save_dir = '/scratch/mi8uu/mrm/test-time-adaptation/data/'  # Change this to your desired directory
 
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -84,7 +83,7 @@ def download_imagenet_a():
 
 def extract_imagenet_r():
     # Directory where the downloaded file is saved
-    save_dir = '../test-time-adaptation/data/'
+    save_dir = '/scratch/mi8uu/mrm/test-time-adaptation/data/'
 
     # Full path for the `.tar` file
     output_file = os.path.join(save_dir, "imagenet-r.tar")  # Adjust file name as needed
@@ -100,7 +99,7 @@ def download_imagenet_r():
     direct_download_link = "https://people.eecs.berkeley.edu/~hendrycks/imagenet-r.tar"  # Replace with your actual URL
 
     # Directory where you want to save the file
-    save_dir = '../test-time-adaptation/data/'  # Change this to your desired directory
+    save_dir =  '/scratch/mi8uu/mrm/test-time-adaptation/data/'  # Change this to your desired directory
 
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)

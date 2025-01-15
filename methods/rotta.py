@@ -56,7 +56,7 @@ class RoTTA(TTAMethod):
         return loss_sup
 
     @torch.enable_grad()
-    def forward_and_adapt(self, x):
+    def forward_and_adapt(self, x, y= None):
         imgs_test = x[0]
 
         with torch.no_grad():

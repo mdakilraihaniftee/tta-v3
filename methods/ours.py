@@ -12,7 +12,6 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
-    MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
@@ -94,7 +93,7 @@ class Ours(TTAMethod):
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.01
+            self.backbone_t2.parameters(), 0.001
         )
 
         # setup student model
@@ -249,7 +248,6 @@ class Ours(TTAMethod):
         x = x[0]
         x_aug = self.tta_transform(x)
 
-        # get the outputs from the models
         outputs_s = self.model_s(x)
         outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
@@ -304,11 +302,7 @@ class Ours(TTAMethod):
         )
 
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
-
-        wandb.log(
-            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
-        )
+        outputs = torch.nn.functional.softmax(outputs_s.detach() + outputs_t2, dim=1)
 
         # student model loss
         loss_self_training = 0.0
@@ -330,7 +324,6 @@ class Ours(TTAMethod):
         wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
-        entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
 
@@ -359,13 +352,10 @@ class Ours(TTAMethod):
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
-
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
-        mse_t2 = F.mse_loss(
-            features_t2, prototypes[labels_t1].detach(), reduction="mean"
-        )
+        
         kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
@@ -379,12 +369,16 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
 
+        mse_t2 = F.mse_loss(
+            features_t2, prototypes[labels_t1].detach(), reduction="mean"
+        )
+
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += cntrs_t2_proto
+            #loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 10 * mse_t2
+            loss_t2 += 10 * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
@@ -402,10 +396,8 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            # loss_stu += loss_differential
+            #loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
-
-        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
@@ -447,36 +439,38 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        self.model_t2 = ema_update_model(
-            model_to_update=self.model_t2,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
+        if "ema_t2" in self.cfg.Ours.LOSSES:
+            self.model_t2 = ema_update_model(
+                model_to_update=self.model_t2,
+                model_to_merge=self.model_s,
+                momentum=self.m_teacher_momentum,
+                device=self.device,
+                update_all=True,
+            )
 
-        # Stochastic restore
-        with torch.no_grad():
-            self.rst = 0.01
-            if self.rst > 0.0:
-                for nm, m in self.model_t2.named_modules():
-                    for npp, p in m.named_parameters():
-                        if npp in ["weight", "bias"] and p.requires_grad:
-                            mask = (
-                                (torch.rand(p.shape) < self.rst).float().to(self.device)
-                            )
-                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                1.0 - mask
-                            )
-
-        with torch.no_grad():
-            if True:
-                prior = outputs.softmax(1).mean(0)
-                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-                    prior
-                )
-                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-                outputs *= smoothed_prior
+        if "stochastic_restore" in self.cfg.Ours.LOSSES:
+            # Stochastic restore
+            with torch.no_grad():
+                self.rst = 0.01
+                if self.rst > 0.0:
+                    for nm, m in self.model_t2.named_modules():
+                        for npp, p in m.named_parameters():
+                            if npp in ["weight", "bias"] and p.requires_grad:
+                                mask = (
+                                    (torch.rand(p.shape) < self.rst).float().to(self.device)
+                                )
+                                p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                    1.0 - mask
+                                )
+        if "prior_corr" in self.cfg.Ours.LOSSES:
+            with torch.no_grad():
+                if True:
+                    prior = outputs.softmax(1).mean(0)
+                    smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                        prior
+                    )
+                    smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                    outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
@@ -519,7 +513,8 @@ class Ours(TTAMethod):
                 if bn is None or bn:
                     m.requires_grad_(True)
             elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
-                m.requires_grad_(True if bn else False)
+                if bn is None or bn:
+                    m.requires_grad_(True)
             else:
                 m.requires_grad_(False if bn else True)
 

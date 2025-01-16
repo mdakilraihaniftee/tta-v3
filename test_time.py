@@ -35,7 +35,7 @@ def evaluate(description):
     # setup wandb logging
     wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
-    information = "gradual with imagenetc"
+    information = "current best on cifar 10c, 100c"
     wandb.run.name += "-" + information
 
     # add current bangladesh time to the run name
@@ -103,6 +103,7 @@ def evaluate(description):
 
         wandb.summary["description"] = desc
         logger.info(desc)
+        logger.info(cfg.Ours.LOSSES)
     # ==========================================================================
 
     # get the test sequence containing the corruptions or domain names

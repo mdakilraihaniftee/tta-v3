@@ -136,7 +136,7 @@ class Ours(TTAMethod):
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
-            num_channels = 640
+            num_channels = 64
         elif self.dataset_name == "cifar100_c":
             num_channels = 1024
         else:

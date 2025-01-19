@@ -32,8 +32,14 @@ def evaluate(description):
                       ]
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
+    if cfg.MODEL.ADAPTATION == "ours" and cfg.Ours.flag_bn:
+        str_ours =" stu bn only "
+        print("yeah")
+    else:
+        str_ours = ""
+        print("oh no")
     # setup wandb logging
-    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
     information = "current best on cifar 10c, 100c"
     wandb.run.name += "-" + information

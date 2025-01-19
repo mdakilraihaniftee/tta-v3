@@ -206,6 +206,7 @@ _C.Ours.LOSSES = [
     "l2_sp",
     "kld_t2_proto",
 ]
+_C.Ours.flag_bn = False
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()
 

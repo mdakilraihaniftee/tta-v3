@@ -69,7 +69,7 @@ class TTAMethod(nn.Module):
         # then skipping the state copy would save memory
         self.models = [self.model]
         self.optimizers = [self.optimizer]
-        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
+        self.model_states, self.optimizer_state = self.copy_model_and_optimizer()
 
         # setup for mixed-precision or single precision
         self.mixed_precision = cfg.MIXED_PRECISION
@@ -261,21 +261,43 @@ class TTAMethod(nn.Module):
 
     def reset(self):
         """Reset the model and optimizer state to the initial source state"""
-        if self.model_states is None or self.optimizer_states is None:
+        if self.model_states is None or self.optimizer_state is None:
             raise Exception("cannot reset without saved model/optimizer state")
         self.load_model_and_optimizer()
 
     def copy_model_and_optimizer(self):
-        """Copy the model and optimizer states for resetting after adaptation."""
-        model_states = [deepcopy(model.state_dict()) for model in self.models]
-        optimizer_state = deepcopy(self.optimizer.state_dict())
+        """Copy the model and optimizer states for resetting after adaptation with error handling."""
+        model_states = []
+        
+        for idx, model in enumerate(self.models):
+            try:
+                model_states.append(deepcopy(model.state_dict()))
+            except Exception as e:
+                print(f"Error copying state_dict for model at index {idx}: {e}")
+                model_states.append(None)  # Append None if copying fails for a specific model
+        
+        try:
+            optimizer_state = deepcopy(self.optimizer.state_dict())
+        except Exception as e:
+            print(f"Error copying optimizer state_dict: {e}")
+            optimizer_state = None  # Assign None if copying fails
+        
         return model_states, optimizer_state
 
-    def load_model_and_optimizer(self):
-        """Restore the model and optimizer states from copies."""
-        for model, model_state in zip(self.models, self.model_states):
-            model.load_state_dict(model_state, strict=True)
-        self.optimizer.load_state_dict(self.optimizer_state)
+
+    def load_model_and_optimizer(self): 
+        """Restore the model and optimizer states from copies with error handling."""
+        for idx, (model, model_state) in enumerate(zip(self.models, self.model_states)):
+            try:
+                model.load_state_dict(model_state, strict=True)
+            except Exception as e:
+                print(f"Error loading state_dict for model at index {idx}: {e}")
+
+        try:
+            self.optimizer.load_state_dict(self.optimizer_state)
+        except Exception as e:
+            print(f"Error loading state_dict for optimizer: {e}")
+
 
     @staticmethod
     def copy_model(model):

@@ -28,7 +28,7 @@ _C.SETTING = "continual"
 
 # Data directory
 _C.DATA_DIR = "./data"
-_C.DATA_DIR = "/scratch/mi8uu/mrm/test-time-adaptation/data/"
+#_C.DATA_DIR = "/scratch/mi8uu/mrm/test-time-adaptation/data/"
 
 
 # Weight directory
@@ -143,6 +143,11 @@ _C.OPTIM.NESTEROV = True
 
 # L2 regularization
 _C.OPTIM.WD = 0.0
+
+
+# --------------------------------- Federeated options -------------------- #
+_C.fed = CfgNode()
+_C.fed.fed_tech = "none_fed"  #  "fedavg", 
 
 # --------------------------------- Mean teacher options -------------------- #
 _C.M_TEACHER = CfgNode()
@@ -329,7 +334,7 @@ _C.TEST = CfgNode()
 _C.TEST.NUM_WORKERS = 4
 
 # Batch size for evaluation (and updates)
-_C.TEST.BATCH_SIZE = 128
+_C.TEST.BATCH_SIZE = 200
 
 # If the batch size is 1, a sliding window approach can be applied by setting window length > 1
 _C.TEST.WINDOW_LENGTH = 1

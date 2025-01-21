@@ -38,8 +38,12 @@ def evaluate(description):
     else:
         str_ours = ""
         print("oh no")
+
+    
+
+        
     # setup wandb logging
-    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + cfg.TEST.BATCH_SIZE + " bt sz " + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
     information = "current best on cifar 10c, 100c"
     wandb.run.name += "-" + information
@@ -246,8 +250,15 @@ def evaluate(description):
         # print detailed results for each domain
         eval_domain_dict(domain_dict, domain_seq=domain_sequence)
 
+
+    print("*"*50)
+    print("Batch size ", cfg.TEST.BATCH_SIZE)
+    print("*"*50)
+    
     if cfg.TEST.DEBUG:
         print_memory_info()
+    
+    
 
     # save the ckpt to wandb
     wandb.save(cfg.CKPT_DIR)

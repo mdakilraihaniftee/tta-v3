@@ -160,6 +160,10 @@ class Ours(TTAMethod):
             self.model_s, self.arch_name, self.dataset_name
         )
 
+        self.models = [self.model, self.model_s]
+        self.optimizers = [self.optimizer, self.optimizer_s]
+        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
+
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
     ):
@@ -523,20 +527,33 @@ class Ours(TTAMethod):
             else:
                 m.requires_grad_(False if bn else True)
 
+
+  
     def copy_model_and_optimizer(self):
         """Copy the model and optimizer states for resetting after adaptation."""
-        model_states = [deepcopy(model.state_dict()) for model in self.models]
-        optimizer_states = [
-            deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
-        ]
-        return model_states, optimizer_states
+        try:
+            model_states = [deepcopy(model.state_dict()) for model in self.models]
+            optimizer_states = [
+                deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
+            ]
+            return model_states, optimizer_states
+        except Exception as e:
+            print(f"Error while copying model or optimizer states: {e}")
+            return None, None
 
     def load_model_and_optimizer(self):
         """Restore the model and optimizer states from copies."""
-        for model, model_state in zip(self.models, self.model_states):
-            model.load_state_dict(model_state, strict=True)
-        for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
-            optimizer.load_state_dict(optimizer_state)
+        try:
+            for model, model_state in zip(self.models, self.model_states):
+                model.load_state_dict(model_state, strict=True)
+            for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
+                optimizer.load_state_dict(optimizer_state)
+        except Exception as e:
+            print(f"Error while restoring model or optimizer states: {e}")
+
+
+
+
 
     def KL_Div_loss(self, features, prototypes, labels):
         """

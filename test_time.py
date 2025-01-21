@@ -43,7 +43,7 @@ def evaluate(description):
 
         
     # setup wandb logging
-    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + cfg.TEST.BATCH_SIZE + " bt sz " + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + str(cfg.TEST.BATCH_SIZE) + " bt sz " + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
     information = "current best on cifar 10c, 100c"
     wandb.run.name += "-" + information
@@ -254,7 +254,7 @@ def evaluate(description):
     print("*"*50)
     print("Batch size ", cfg.TEST.BATCH_SIZE)
     print("*"*50)
-    
+
     if cfg.TEST.DEBUG:
         print_memory_info()
     

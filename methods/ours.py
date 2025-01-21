@@ -136,7 +136,7 @@ class Ours(TTAMethod):
         )
 
         # setup priority queues for prototype updates
-        self.priority_queues = init_pqs(self.num_classes, max_size=10)
+        self.priority_queues = init_pqs(self.num_classes, max_size=cfg.Ours.pq_size)
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":

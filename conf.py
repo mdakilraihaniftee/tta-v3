@@ -210,6 +210,7 @@ _C.Ours.flag_bn = False
 _C.Ours.filter_choice = 2
 _C.Ours.confidence_threshold = 0.5
 _C.Ours.pop_reset_epoch = 50
+_C.Ours.pq_size = 10
 
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()

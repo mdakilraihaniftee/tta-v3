@@ -137,6 +137,11 @@ def evaluate(description):
     else:
         severities = cfg.CORRUPTION.SEVERITY
 
+
+    print("*"*50)
+    print("Batch size ", cfg.TEST.BATCH_SIZE)
+    print("*"*50)
+    
     errs = []
     errs_5 = []
     domain_dict = {}
@@ -251,9 +256,7 @@ def evaluate(description):
         eval_domain_dict(domain_dict, domain_seq=domain_sequence)
 
 
-    print("*"*50)
-    print("Batch size ", cfg.TEST.BATCH_SIZE)
-    print("*"*50)
+    
 
     if cfg.TEST.DEBUG:
         print_memory_info()

@@ -258,7 +258,7 @@ def evaluate(description):
 
     
     print("*"*50)
-    print("cfg.Ours.pop_reset_epoch ", cfg.Ours.pq_size)
+    print("priority queue size ", cfg.Ours.pq_size)
     print("*"*50)
 
     

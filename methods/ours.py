@@ -44,6 +44,10 @@ class Ours(TTAMethod):
         self.final_lr = cfg.OPTIM.LR
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
+        self.filter_c = cfg.Ours.filter_choice
+        self.confidence_threshold = cfg.Ours.confidence_threshold
+        self.pop_reset_epoch = cfg.Ours.pop_reset_epoch
+
 
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
@@ -212,7 +216,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 50 == 0:
+        if self.c % self.pop_reset_epoch == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
@@ -336,7 +340,14 @@ class Ours(TTAMethod):
         filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
             entropy_t1, entropy_t2, entropy_threshold=0.5
         )
-        selected_filter_ids = filter_ids_2
+        if self.filter_c == 1:
+            selected_filter_ids = filter_ids_1
+        elif self.filter_c == 2:
+            selected_filter_ids = filter_ids_2
+        elif self.filter_c == 3:
+            selected_filter_ids = filter_ids_3
+        elif self.filter_c == 4:
+            selected_filter_ids = filter_ids_4
 
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)

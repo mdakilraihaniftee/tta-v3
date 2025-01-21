@@ -257,6 +257,13 @@ def evaluate(description):
 
 
     
+    print("*"*50)
+    print("filter choice ", cfg.Ours.filter_choice)
+    print("self.confidence_threshold ", cfg.Ours.confidence_threshold)
+    print("cfg.Ours.pop_reset_epoch ", cfg.Ours.pop_reset_epoch)
+    print("*"*50)
+
+    
 
     if cfg.TEST.DEBUG:
         print_memory_info()

@@ -127,6 +127,38 @@ def evaluate(description):
         domain_sequence = cfg.CORRUPTION.TYPE
     logger.info(f"Using {cfg.CORRUPTION.DATASET} with the following domain sequence: {domain_sequence}")
 
+    domain_seq_type = cfg.CORRUPTION.category
+    if domain_seq_type == 'mixed':
+        #mixed sequence from domain group
+        domain_sequence = ['gaussian_noise', 'defocus_blur', 'snow', 'brightness',
+                       'shot_noise', 'glass_blur', 'frost', 'contrast', 
+                      'impulse_noise',  'motion_blur', 'fog',  'elastic_transform',
+                       'pixelate', 'zoom_blur', 'jpeg_compression' ]
+    elif domain_seq_type == 'easy2hard':
+        #easy to hard domain group
+        if cfg.CORRUPTION.DATASET == 'cifar10_c':
+            domain_sequence = ['brightness', 'snow', 'fog', 'elastic_transform', 'jpeg_compression', 'motion_blur', 
+            'frost', 'zoom_blur', 'contrast', 'defocus_blur', 'glass_blur', 'pixelate', 
+            'shot_noise', 'gaussian_noise', 'impulse_noise']
+        elif cfg.CORRUPTION.DATASET == 'cifar10_c':
+            domain_sequence = ['zoom_blur', 'defocus_blur', 'brightness', 'motion_blur', 'elastic_transform', 
+             'impulse_noise', 'snow', 'jpeg_compression', 'frost', 'fog', 'glass_blur', 
+             'contrast', 'shot_noise', 'gaussian_noise', 'pixelate']
+    elif domain_seq_type == 'hard2easy':
+        #hard to easy domain group
+        if cfg.CORRUPTION.DATASET == 'cifar10_c':
+            domain_sequence = ['impulse_noise', 'gaussian_noise', 'shot_noise', 'pixelate', 'glass_blur', 
+                        'defocus_blur', 'contrast', 'zoom_blur', 'frost', 'motion_blur', 
+                        'jpeg_compression', 'elastic_transform', 'fog', 'snow', 'brightness']
+
+        elif cfg.CORRUPTION.DATASET == 'cifar100_c':
+                domain_sequence = ['pixelate', 'gaussian_noise', 'shot_noise', 'contrast', 'glass_blur', 
+                         'fog', 'frost', 'jpeg_compression', 'snow', 'impulse_noise', 
+                         'elastic_transform', 'motion_blur', 'brightness', 'defocus_blur', 
+                         'zoom_blur']
+
+    print("domain_seq_type ", domain_seq_type)
+    print(domain_sequence)
     # prevent iterating multiple times over the same data in the mixed_domains setting
     domain_seq_loop = ["mixed"] if "mixed_domains" in cfg.SETTING else domain_sequence
 

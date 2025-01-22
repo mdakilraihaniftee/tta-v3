@@ -105,6 +105,7 @@ _C.CORRUPTION.TYPE = ['gaussian_noise', 'shot_noise', 'impulse_noise',
                       'defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                       'snow', 'frost', 'fog', 'brightness', 'contrast',
                       'elastic_transform', 'pixelate', 'jpeg_compression']
+_C.CORRUPTION.category = 'none'
 _C.CORRUPTION.SEVERITY = [5, 4, 3, 2, 1]
 
 # Number of examples to evaluate. If num_ex != -1, each sequence is sub-sampled to the specified amount

@@ -140,10 +140,19 @@ def evaluate(description):
             domain_sequence = ['brightness', 'snow', 'fog', 'elastic_transform', 'jpeg_compression', 'motion_blur', 
             'frost', 'zoom_blur', 'contrast', 'defocus_blur', 'glass_blur', 'pixelate', 
             'shot_noise', 'gaussian_noise', 'impulse_noise']
-        elif cfg.CORRUPTION.DATASET == 'cifar10_c':
+        elif cfg.CORRUPTION.DATASET == 'cifar100_c':
             domain_sequence = ['zoom_blur', 'defocus_blur', 'brightness', 'motion_blur', 'elastic_transform', 
              'impulse_noise', 'snow', 'jpeg_compression', 'frost', 'fog', 'glass_blur', 
              'contrast', 'shot_noise', 'gaussian_noise', 'pixelate']
+        elif cfg.CORRUPTION.DATASET == 'imagenet_c':
+            domain_sequence = [
+                'brightness', 'jpeg_compression', 'fog', 'frost', 'zoom_blur', 'pixelate',
+                'defocus_blur', 'elastic_transform', 'snow', 'motion_blur', 'glass_blur',
+                'contrast', 'shot_noise', 'gaussian_noise', 'impulse_noise'
+            ]
+
+
+
     elif domain_seq_type == 'hard2easy':
         #hard to easy domain group
         if cfg.CORRUPTION.DATASET == 'cifar10_c':
@@ -156,6 +165,12 @@ def evaluate(description):
                          'fog', 'frost', 'jpeg_compression', 'snow', 'impulse_noise', 
                          'elastic_transform', 'motion_blur', 'brightness', 'defocus_blur', 
                          'zoom_blur']
+        elif cfg.CORRUPTION.DATASET == 'imagenet_c':
+            domain_sequence_reverse = [
+            'impulse_noise', 'gaussian_noise', 'shot_noise', 'contrast', 'glass_blur',
+            'motion_blur', 'snow', 'elastic_transform', 'defocus_blur', 'pixelate',
+            'zoom_blur', 'frost', 'fog', 'jpeg_compression', 'brightness'
+        ]
 
     print("domain_seq_type ", domain_seq_type)
     print(domain_sequence)

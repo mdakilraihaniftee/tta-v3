@@ -41,7 +41,7 @@ def evaluate(description):
         str_ours = ""
         print("oh no")
     # setup wandb logging
-    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + str_ours + "cyclic TTA" + "-" + cfg.CORRUPTION.DATASET
 
     information = "current best on cifar 10c, 100c"
     wandb.run.name += "-" + information

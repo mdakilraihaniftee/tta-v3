@@ -12,6 +12,7 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
+    MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
@@ -44,10 +45,6 @@ class Ours(TTAMethod):
         self.final_lr = cfg.OPTIM.LR
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
-        self.filter_c = cfg.Ours.filter_choice
-        self.confidence_threshold = cfg.Ours.confidence_threshold
-        self.pop_reset_epoch = cfg.Ours.pop_reset_epoch
-
 
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
@@ -97,7 +94,7 @@ class Ours(TTAMethod):
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.001
+            self.backbone_t2.parameters(), 0.01
         )
 
         # setup student model
@@ -136,7 +133,7 @@ class Ours(TTAMethod):
         )
 
         # setup priority queues for prototype updates
-        self.priority_queues = init_pqs(self.num_classes, max_size=cfg.Ours.pq_size)
+        self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
@@ -162,11 +159,6 @@ class Ours(TTAMethod):
         self.backbone_s, _ = split_up_model(
             self.model_s, self.arch_name, self.dataset_name
         )
-
-        
-        self.models = [self.model, self.model_s]
-        self.optimizers = [self.optimizer, self.optimizer_s]
-        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -216,7 +208,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % self.pop_reset_epoch == 0:
+        if self.c % 50 == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
@@ -257,6 +249,7 @@ class Ours(TTAMethod):
         x = x[0]
         x_aug = self.tta_transform(x)
 
+        # get the outputs from the models
         outputs_s = self.model_s(x)
         outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
@@ -311,7 +304,11 @@ class Ours(TTAMethod):
         )
 
         # final output
-        outputs = torch.nn.functional.softmax(outputs_s.detach() + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
+
+        wandb.log(
+            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
+        )
 
         # student model loss
         loss_self_training = 0.0
@@ -333,6 +330,7 @@ class Ours(TTAMethod):
         wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
+        entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
 
@@ -340,14 +338,7 @@ class Ours(TTAMethod):
         filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
             entropy_t1, entropy_t2, entropy_threshold=0.5
         )
-        if self.filter_c == 1:
-            selected_filter_ids = filter_ids_1
-        elif self.filter_c == 2:
-            selected_filter_ids = filter_ids_2
-        elif self.filter_c == 3:
-            selected_filter_ids = filter_ids_3
-        elif self.filter_c == 4:
-            selected_filter_ids = filter_ids_4
+        selected_filter_ids = filter_ids_2
 
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
@@ -368,10 +359,13 @@ class Ours(TTAMethod):
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
+
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
-        
+        mse_t2 = F.mse_loss(
+            features_t2, prototypes[labels_t1].detach(), reduction="mean"
+        )
         kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
@@ -385,16 +379,12 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
 
-        mse_t2 = F.mse_loss(
-            features_t2, prototypes[labels_t1].detach(), reduction="mean"
-        )
-
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            #loss_t2 += cntrs_t2_proto
+            # loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 10 * mse_t2
+            # loss_t2 += 10 * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
@@ -412,8 +402,10 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            #loss_stu += loss_differential
+            # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
+
+        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
@@ -455,38 +447,36 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        if "ema_t2" in self.cfg.Ours.LOSSES:
-            self.model_t2 = ema_update_model(
-                model_to_update=self.model_t2,
-                model_to_merge=self.model_s,
-                momentum=self.m_teacher_momentum,
-                device=self.device,
-                update_all=True,
-            )
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
 
-        if "stochastic_restore" in self.cfg.Ours.LOSSES:
-            # Stochastic restore
-            with torch.no_grad():
-                self.rst = 0.01
-                if self.rst > 0.0:
-                    for nm, m in self.model_t2.named_modules():
-                        for npp, p in m.named_parameters():
-                            if npp in ["weight", "bias"] and p.requires_grad:
-                                mask = (
-                                    (torch.rand(p.shape) < self.rst).float().to(self.device)
-                                )
-                                p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                    1.0 - mask
-                                )
-        if "prior_corr" in self.cfg.Ours.LOSSES:
-            with torch.no_grad():
-                if True:
-                    prior = outputs.softmax(1).mean(0)
-                    smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-                        prior
-                    )
-                    smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-                    outputs *= smoothed_prior
+        # Stochastic restore
+        with torch.no_grad():
+            self.rst = 0.01
+            if self.rst > 0.0:
+                for nm, m in self.model_t2.named_modules():
+                    for npp, p in m.named_parameters():
+                        if npp in ["weight", "bias"] and p.requires_grad:
+                            mask = (
+                                (torch.rand(p.shape) < self.rst).float().to(self.device)
+                            )
+                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                1.0 - mask
+                            )
+
+        with torch.no_grad():
+            if True:
+                prior = outputs.softmax(1).mean(0)
+                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                    prior
+                )
+                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
@@ -529,34 +519,24 @@ class Ours(TTAMethod):
                 if bn is None or bn:
                     m.requires_grad_(True)
             elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
-                if bn is None or bn:
-                    m.requires_grad_(True)
+                m.requires_grad_(True if bn else False)
             else:
                 m.requires_grad_(False if bn else True)
 
-    
     def copy_model_and_optimizer(self):
         """Copy the model and optimizer states for resetting after adaptation."""
-        try:
-            model_states = [deepcopy(model.state_dict()) for model in self.models]
-            optimizer_states = [
-                deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
-            ]
-            return model_states, optimizer_states
-        except Exception as e:
-            print(f"Error while copying model or optimizer states: {e}")
-            return None, None
+        model_states = [deepcopy(model.state_dict()) for model in self.models]
+        optimizer_states = [
+            deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
+        ]
+        return model_states, optimizer_states
 
     def load_model_and_optimizer(self):
         """Restore the model and optimizer states from copies."""
-        try:
-            for model, model_state in zip(self.models, self.model_states):
-                model.load_state_dict(model_state, strict=True)
-            for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
-                optimizer.load_state_dict(optimizer_state)
-        except Exception as e:
-            print(f"Error while restoring model or optimizer states: {e}")
-
+        for model, model_state in zip(self.models, self.model_states):
+            model.load_state_dict(model_state, strict=True)
+        for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
+            optimizer.load_state_dict(optimizer_state)
 
     def KL_Div_loss(self, features, prototypes, labels):
         """

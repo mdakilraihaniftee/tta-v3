@@ -357,7 +357,6 @@ class Ours(TTAMethod):
         if self.filter_c == 1:
             selected_filter_ids = filter_ids_1
         elif self.filter_c == 2:
-        selected_filter_ids = filter_ids_2
             selected_filter_ids = filter_ids_2
         elif self.filter_c == 3:
             selected_filter_ids = filter_ids_3

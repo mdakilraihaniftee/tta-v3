@@ -28,7 +28,7 @@ _C.SETTING = "continual"
 
 # Data directory
 _C.DATA_DIR = "./data"
-_C.DATA_DIR = "/scratch/mi8uu/mrm/test-time-adaptation/data/"
+#_C.DATA_DIR = "/scratch/mi8uu/mrm/test-time-adaptation/data/"
 
 
 # Weight directory
@@ -212,6 +212,8 @@ _C.Ours.filter_choice = 2
 _C.Ours.confidence_threshold = 0.5
 _C.Ours.pop_reset_epoch = 50
 _C.Ours.pq_size = 10
+_C.Ours.lr_t2 =0.001
+_C.Ours.lemda_mse = 10
 
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()

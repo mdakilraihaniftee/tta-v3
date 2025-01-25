@@ -46,6 +46,15 @@ class Ours(TTAMethod):
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
 
+        self.filter_c = cfg.Ours.filter_choice
+        self.confidence_threshold = cfg.Ours.confidence_threshold
+        self.pop_reset_epoch = cfg.Ours.pop_reset_epoch
+        self.lr_t2 = cfg.Ours.lr_t2
+        self.lemda_mse= cfg.Ours.lemda_mse
+
+
+
+
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
 
@@ -93,8 +102,10 @@ class Ours(TTAMethod):
         self.backbone_t2, _ = split_up_model(
             self.model_t2, self.arch_name, self.dataset_name
         )
+
+        
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.01
+            self.backbone_t2.parameters(), self.lr_t2
         )
 
         # setup student model
@@ -133,7 +144,7 @@ class Ours(TTAMethod):
         )
 
         # setup priority queues for prototype updates
-        self.priority_queues = init_pqs(self.num_classes, max_size=10)
+        self.priority_queues = init_pqs(self.num_classes, max_size=cfg.Ours.pq_size)
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
@@ -159,6 +170,11 @@ class Ours(TTAMethod):
         self.backbone_s, _ = split_up_model(
             self.model_s, self.arch_name, self.dataset_name
         )
+
+
+        self.models = [self.model, self.model_s]
+        self.optimizers = [self.optimizer, self.optimizer_s]
+        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -208,7 +224,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 50 == 0:
+        if self.c % self.pop_reset_epoch == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
@@ -338,7 +354,15 @@ class Ours(TTAMethod):
         filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
             entropy_t1, entropy_t2, entropy_threshold=0.5
         )
+        if self.filter_c == 1:
+            selected_filter_ids = filter_ids_1
+        elif self.filter_c == 2:
         selected_filter_ids = filter_ids_2
+            selected_filter_ids = filter_ids_2
+        elif self.filter_c == 3:
+            selected_filter_ids = filter_ids_3
+        elif self.filter_c == 4:
+            selected_filter_ids = filter_ids_4
 
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
@@ -384,7 +408,7 @@ class Ours(TTAMethod):
             # loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 10 * mse_t2
+            loss_t2 += self.lemda_mse * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
@@ -446,37 +470,39 @@ class Ours(TTAMethod):
             device=self.device,
             update_all=True,
         )
+        if "ema_t2" in self.cfg.Ours.LOSSES:
+            self.model_t2 = ema_update_model(
+                model_to_update=self.model_t2,
+                model_to_merge=self.model_s,
+                momentum=self.m_teacher_momentum,
+                device=self.device,
+                update_all=True,
+            )
 
-        # self.model_t2 = ema_update_model(
-        #     model_to_update=self.model_t2,
-        #     model_to_merge=self.model_s,
-        #     momentum=self.m_teacher_momentum,
-        #     device=self.device,
-        #     update_all=True,
-        # )
+        if "stochastic_restore" in self.cfg.Ours.LOSSES:
+            # Stochastic restore
+            with torch.no_grad():
+                self.rst = 0.01
+                if self.rst > 0.0:
+                    for nm, m in self.model_t2.named_modules():
+                        for npp, p in m.named_parameters():
+                            if npp in ["weight", "bias"] and p.requires_grad:
+                                mask = (
+                                    (torch.rand(p.shape) < self.rst).float().to(self.device)
+                                )
+                                p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                    1.0 - mask
+                                )
 
-        # Stochastic restore
-        with torch.no_grad():
-            self.rst = 0.01
-            if self.rst > 0.0:
-                for nm, m in self.model_t2.named_modules():
-                    for npp, p in m.named_parameters():
-                        if npp in ["weight", "bias"] and p.requires_grad:
-                            mask = (
-                                (torch.rand(p.shape) < self.rst).float().to(self.device)
-                            )
-                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                1.0 - mask
-                            )
-
-        with torch.no_grad():
-            if True:
-                prior = outputs.softmax(1).mean(0)
-                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-                    prior
-                )
-                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-                outputs *= smoothed_prior
+        if "prior_corr" in self.cfg.Ours.LOSSES:
+            with torch.no_grad():
+                if True:
+                    prior = outputs.softmax(1).mean(0)
+                    smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                        prior
+                    )
+                    smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                    outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
@@ -525,18 +551,26 @@ class Ours(TTAMethod):
 
     def copy_model_and_optimizer(self):
         """Copy the model and optimizer states for resetting after adaptation."""
-        model_states = [deepcopy(model.state_dict()) for model in self.models]
-        optimizer_states = [
-            deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
-        ]
-        return model_states, optimizer_states
+        try:
+            model_states = [deepcopy(model.state_dict()) for model in self.models]
+            optimizer_states = [
+                deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
+            ]
+            return model_states, optimizer_states
+        except Exception as e:
+            print(f"Error while copying model or optimizer states: {e}")
+            return None, None
 
     def load_model_and_optimizer(self):
         """Restore the model and optimizer states from copies."""
-        for model, model_state in zip(self.models, self.model_states):
-            model.load_state_dict(model_state, strict=True)
-        for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
-            optimizer.load_state_dict(optimizer_state)
+        try:
+            for model, model_state in zip(self.models, self.model_states):
+                model.load_state_dict(model_state, strict=True)
+            for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
+                optimizer.load_state_dict(optimizer_state)
+        except Exception as e:
+            print(f"Error while restoring model or optimizer states: {e}")
+
 
     def KL_Div_loss(self, features, prototypes, labels):
         """

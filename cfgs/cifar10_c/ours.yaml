@@ -30,3 +30,5 @@ OPTIM:
   BETA: 0.9
   LR: 1e-3
   WD: 0.
+Ours:
+  lr_t2: 0.001

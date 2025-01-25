@@ -30,3 +30,6 @@ OPTIM:
   WD: 0.0
 TEST:
   BATCH_SIZE: 64
+Ours:
+  lr_t2: 0.01
+  lemda_mse: 0

@@ -352,7 +352,7 @@ _C.TEST.WINDOW_LENGTH = 1
 _C.TEST.N_AUGMENTATIONS = 32
 
 # The value of the Dirichlet distribution used for sorting the class labels.
-_C.TEST.DELTA_DIRICHLET = 0.0
+_C.TEST.DELTA_DIRICHLET = 0
 
 # Debuging mode
 _C.TEST.DEBUG = False

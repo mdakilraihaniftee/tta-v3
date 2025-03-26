@@ -11,7 +11,7 @@ from utils.registry import ADAPTATION_REGISTRY
 from utils.losses import Entropy, SymmetricCrossEntropy, SoftLikelihoodRatio
 from utils.misc import ema_update_model
 
-
+from methods.bn import AlphaBatchNorm, EMABatchNorm
 
 @torch.no_grad()
 def update_model_probs(x_ema, x, momentum=0.9):
@@ -114,6 +114,7 @@ class ROID(TTAMethod):
             device=self.device
         )
 
+        #outputs = 
         with torch.no_grad():
             if self.use_prior_correction:
                 prior = outputs.softmax(1).mean(0)
@@ -157,6 +158,29 @@ class ROID(TTAMethod):
                 m.track_running_stats = False
                 m.running_mean = None
                 m.running_var = None
+            elif isinstance(m, nn.BatchNorm1d):
+                m.train()   # always forcing train mode in bn1d will cause problems for single sample tta
+                m.requires_grad_(True)
+            elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
+                m.requires_grad_(True)
+
+    def configure_model2(self):
+        """Configure model for use with tent."""
+        # train mode, because tent optimizes the model to minimize entropy
+        # self.model.train()
+        self.model.eval()  # eval mode to avoid stochastic depth in swin. test-time normalization is still applied
+        # disable grad, to (re-)enable only what tent updates
+        self.model.requires_grad_(False)
+        # configure norm for tent updates: enable grad + force batch statisics
+        # Apply BNEMA to use Exponential Moving Average for BatchNorm layers
+        self.model = EMABatchNorm.adapt_model(self.model).to(self.device)
+
+        for m in self.model.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                m.requires_grad_(True)
+                # m.track_running_stats = False
+                # m.running_mean = None
+                # m.running_var = None
             elif isinstance(m, nn.BatchNorm1d):
                 m.train()   # always forcing train mode in bn1d will cause problems for single sample tta
                 m.requires_grad_(True)

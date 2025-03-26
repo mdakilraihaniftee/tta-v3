@@ -124,9 +124,13 @@ class Client:
         #print(batch_accuracy)
         self.accuracies.append(batch_accuracy)
         
-        # if self.current_step % 30 == 0:
-        #     print(self.setting)
-        #     print(batch_accuracy)
+        if self.current_step % 30 == 0:
+            print(self.current_step)
+            print("Client {id(self)}")
+            print("actual")
+            print(labels)
+            print("predicted")
+            print(outputs.argmax(1))
 
         wandb.log({f"Client {id(self)} {self.setting} Batch Accuracy": batch_accuracy})
 
@@ -184,7 +188,7 @@ if __name__ == "__main__":
     load_cfg_from_args('fed tta')
     # User-defined settings
     n = 10  # Total clients
-    n1, n2, n3 = 4, 3, 3  # Clients for continual, mixed, reset_each_shift
+    n1, n2, n3, n4 = 0, 0 , 0, 10   # Clients for continual, mixed, reset_each_shift
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
 
@@ -203,7 +207,7 @@ if __name__ == "__main__":
         Client(model, setting, domain_sequence, severities, cfg, model_preprocess, device)
         for model, setting in zip(
             models,
-            ["continual"] * n1 + ["mixed"] * n2 + ["reset_each_shift"] * n3
+            ["continual"] * n1 + ["mixed"] * n2 + ["reset_each_shift"] * n3 + ["correlated"] * n4
         )
     ]
 
@@ -213,9 +217,9 @@ if __name__ == "__main__":
    
      # setup wandb logging
      
-    wandb.run.name = "fed-" + cfg.MODEL.ADAPTATION + "-" + cfg.fed.fed_tech + "-" + cfg.CORRUPTION.DATASET
+    wandb.run.name = "fed-" + cfg.MODEL.ADAPTATION + "-" + cfg.fed.fed_tech + "-" + cfg.CORRUPTION.DATASET + "-dirchlet " +  str(cfg.TEST.DELTA_DIRICHLET)
 
-    information = "4 continual, 3 mixed, 3 reset_each_shift"
+    information = "10 correlated"
     wandb.run.name += "-" + information
 
     # add current bangladesh time to the run name

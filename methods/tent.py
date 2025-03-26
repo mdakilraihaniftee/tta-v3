@@ -8,7 +8,7 @@ import torch.nn as nn
 from methods.base import TTAMethod
 from utils.registry import ADAPTATION_REGISTRY
 from utils.losses import Entropy
-
+from methods.bn import AlphaBatchNorm, EMABatchNorm
 
 @ADAPTATION_REGISTRY.register()
 class Tent(TTAMethod):
@@ -20,7 +20,10 @@ class Tent(TTAMethod):
 
         # setup loss function
         self.softmax_entropy = Entropy()
-
+        self.c = 0
+    
+    
+    
     def loss_calculation(self, x):
         imgs_test = x[0]
         outputs = self.model(imgs_test)
@@ -29,22 +32,28 @@ class Tent(TTAMethod):
 
     @torch.enable_grad()
     def forward_and_adapt(self, x, y):
+
         """Forward and adapt model on batch of data.
         Measure entropy of the model prediction, take gradients, and update params.
         """
-        if self.mixed_precision and self.device == "cuda":
-            with torch.cuda.amp.autocast():
-                outputs, loss = self.loss_calculation(x)
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad()
-        else:
-            outputs, loss = self.loss_calculation(x)
-            loss.backward()
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-        return outputs
+        # if self.mixed_precision and self.device == "cuda":
+        #     with torch.cuda.amp.autocast():
+        #         outputs, loss = self.loss_calculation(x)
+        #     self.scaler.scale(loss).backward()
+        #     self.scaler.step(self.optimizer)
+        #     self.scaler.update()
+        #     self.optimizer.zero_grad()
+        # else:
+        #     outputs, loss = self.loss_calculation(x)
+        #     loss.backward()
+        #     self.optimizer.step()
+        #     self.optimizer.zero_grad()
+
+        # self.c = self.c + 1
+        # return outputs
+
+        imgs_test = x[0]
+        return self.model(imgs_test)
 
     def collect_params(self):
         """Collect the affine scale + shift parameters from batch norms.
@@ -72,13 +81,15 @@ class Tent(TTAMethod):
         # disable grad, to (re-)enable only what tent updates
         self.model.requires_grad_(False)
         # configure norm for tent updates: enable grad + force batch statisics
+        # Apply BNEMA to use Exponential Moving Average for BatchNorm layers
+        self.model = EMABatchNorm.adapt_model(self.model).to(self.device)
+
         for m in self.model.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.requires_grad_(True)
-                # force use of batch stats in train and eval modes
-                m.track_running_stats = False
-                m.running_mean = None
-                m.running_var = None
+                # m.track_running_stats = False
+                # m.running_mean = None
+                # m.running_var = None
             elif isinstance(m, nn.BatchNorm1d):
                 m.train()   # always forcing train mode in bn1d will cause problems for single sample tta
                 m.requires_grad_(True)

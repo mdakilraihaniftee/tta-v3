@@ -3,9 +3,34 @@ import logging
 import numpy as np
 from typing import Union
 from datasets.imagenet_subsets import IMAGENET_D_MAPPING
+import wandb
+
 
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_classwise_accuracy(labels, predictions, num_classes):
+    # Initialize a list to store accuracy for each class
+    class_accuracies = []
+    
+    # Loop through each class
+    for class_label in range(num_classes):
+        # Get all indices where the label is equal to the current class
+        label_indices = (labels == class_label)
+        model_indices = (predictions == class_label)
+        
+        # Check if class is missing in either label or model tensor
+        if label_indices.sum() == 0 or model_indices.sum() == 0:
+            class_accuracies.append(None)
+        else:
+            # Calculate accuracy for this class: number of correct predictions / total occurrences
+            correct_predictions = (labels[label_indices] == predictions[label_indices]).sum().item()
+            total_predictions = label_indices.sum().item()
+            accuracy = correct_predictions / total_predictions
+            class_accuracies.append(accuracy)
+    
+    return class_accuracies
 
 
 def split_results_by_domain(domain_dict: dict, data: list, predictions: torch.tensor):
@@ -70,14 +95,48 @@ def get_accuracy(model: torch.nn.Module,
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             imgs, labels = data[0], data[1]
+            
+
+            #new
+            attack_sorted = False
+            if attack_sorted:
+                # Sort the labels and get the sorting indices
+                sorted_indices = torch.argsort(labels)
+
+                # Use the sorted indices to reorder imgs and labels
+                imgs = imgs[sorted_indices]
+                labels = labels[sorted_indices]
+                #print(labels)
+
+
+            
+
             output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device), labels.to(device))
             predictions = output.argmax(1)
+            
+            
+            if i%10==0:
+                print("labels")
+                print(labels)
+                print("predictions")
+                print(predictions)
+
+            # Calculate class-wise accuracy
+            accuracies = calculate_classwise_accuracy(labels.to(device), predictions, num_classes=10)
+            # Log class-wise accuracy to WandB
+            class_accuracies = {f'class_{i}_accuracy': accuracy if accuracy is not None else None for i, accuracy in enumerate(accuracies)}
+            wandb.log(class_accuracies)
+
 
             if dataset_name == "imagenet_d" and domain_name != "none":
                 mapping_vector = list(IMAGENET_D_MAPPING.values())
                 predictions = torch.tensor([mapping_vector[pred] for pred in predictions], device=device)
 
-            num_correct += (predictions == labels.to(device)).float().sum()
+            num_c = (predictions == labels.to(device)).float().sum()
+            acc = num_c/predictions.shape[0]
+            print(acc)
+            wandb.log({"accuracy": acc})
+            num_correct += num_c
 
             if "mixed_domains" in setting and len(data) >= 3:
                 domain_dict = split_results_by_domain(domain_dict, data, predictions)
@@ -92,3 +151,4 @@ def get_accuracy(model: torch.nn.Module,
 
     accuracy = num_correct.item() / num_samples
     return accuracy, domain_dict, num_samples
+

@@ -32,3 +32,10 @@ OPTIM:
   WD: 0.
 Ours:
   lr_t2: 0.001
+  flag_bn: False
+  filter_choice: 2
+  confidence_threshold: 0.5
+  pop_reset_epoch: 50
+  pq_size: 10
+  lemda_mse: 10
+  lemda_im: 2

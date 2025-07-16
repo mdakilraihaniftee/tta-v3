@@ -27,11 +27,16 @@ from utils.misc import (
     update_pqs,
 )
 from utils.registry import ADAPTATION_REGISTRY
+from torch.optim.lr_scheduler import StepLR
+
+
 
 logger = logging.getLogger(__name__)
 
 
 @ADAPTATION_REGISTRY.register()
+
+
 class Ours(TTAMethod):
     def __init__(self, cfg, model, num_classes):
         super().__init__(cfg, model, num_classes)
@@ -52,7 +57,7 @@ class Ours(TTAMethod):
         self.lr_t2 = cfg.Ours.lr_t2
         self.lemda_mse= cfg.Ours.lemda_mse
 
-
+        
 
 
         # setup TTA transforms
@@ -176,6 +181,11 @@ class Ours(TTAMethod):
         self.optimizers = [self.optimizer, self.optimizer_s]
         self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
 
+        self.scheduler = StepLR( self.optimizer_s, step_size=100, gamma=0.5)  # Reduce LR by factor of 0.1 every 10 epochs
+
+
+    
+
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
     ):
@@ -249,6 +259,7 @@ class Ours(TTAMethod):
             if self.priority_queues[i].is_empty():
                 count += 1
         return count
+
 
     def loss_calculation(self, x, y=None):
         """
@@ -352,7 +363,7 @@ class Ours(TTAMethod):
 
         # apply filtering for feature selection
         filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
-            entropy_t1, entropy_t2, entropy_threshold=0.5
+            entropy_t1, entropy_t2, entropy_threshold =0.5
         )
         if self.filter_c == 1:
             selected_filter_ids = filter_ids_1
@@ -457,10 +468,16 @@ class Ours(TTAMethod):
                 self.optimizer_s.zero_grad()
                 loss_stu.backward()
                 self.optimizer_s.step()
+                # Update learning rate
+                #self.scheduler.step()
+
 
                 self.optimizer_backbone_t2.zero_grad()
                 loss_t2.backward()
                 self.optimizer_backbone_t2.step()
+
+        if self.c % 25 ==0:
+            print(loss_stu.item())
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,

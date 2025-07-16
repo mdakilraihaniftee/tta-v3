@@ -115,11 +115,11 @@ def get_accuracy(model: torch.nn.Module,
             predictions = output.argmax(1)
             
             
-            if i%10==0:
-                print("labels")
-                print(labels)
-                print("predictions")
-                print(predictions)
+            # if i%10==0:
+            #     print("labels")
+            #     print(labels)
+            #     print("predictions")
+            #     print(predictions)
 
             # Calculate class-wise accuracy
             accuracies = calculate_classwise_accuracy(labels.to(device), predictions, num_classes=10)
@@ -134,7 +134,7 @@ def get_accuracy(model: torch.nn.Module,
 
             num_c = (predictions == labels.to(device)).float().sum()
             acc = num_c/predictions.shape[0]
-            print(acc)
+            # print(acc)
             wandb.log({"accuracy": acc})
             num_correct += num_c
 

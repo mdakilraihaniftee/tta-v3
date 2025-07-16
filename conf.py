@@ -214,6 +214,7 @@ _C.Ours.pop_reset_epoch = 50
 _C.Ours.pq_size = 10
 _C.Ours.lr_t2 =0.001
 _C.Ours.lemda_mse = 10
+_C.Ours.lemda_im = 2
 
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()

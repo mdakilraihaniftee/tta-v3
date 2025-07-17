@@ -367,7 +367,7 @@ class Ours(TTAMethod):
         entropy_t2 = self.ent(outputs_t2)
 
         # apply filtering for feature selection
-        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
+        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4, filter_ids_5, filter_ids_6 = confidence_condition(
             entropy_t1, entropy_t2, entropy_threshold =0.5
         )
         if self.filter_c == 1:
@@ -378,6 +378,10 @@ class Ours(TTAMethod):
             selected_filter_ids = filter_ids_3
         elif self.filter_c == 4:
             selected_filter_ids = filter_ids_4
+        elif self.filter_c == 5:
+            selected_filter_ids = filter_ids_5
+        elif self.filter_c == 6:
+            selected_filter_ids = filter_ids_6
 
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
@@ -419,15 +423,20 @@ class Ours(TTAMethod):
         )
 
         loss_t2 = 0.0
-        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += cntrs_t2_proto
-            wandb.log({"contr_t2_proto": cntrs_t2_proto})
+        # if "contr_t2_proto" in self.cfg.Ours.LOSSES:
+        #     # loss_t2 += cntrs_t2_proto
+        #     wandb.log({"contr_t2_proto": cntrs_t2_proto})
+        # if "differ_loss" in self.cfg.Ours.LOSSES:
+        #     # loss_stu += loss_differential
+        #     wandb.log({"differ_loss": loss_differential})
+        # if "kld_t2_proto" in self.cfg.Ours.LOSSES:
+        #     # loss_t2 += 100 * kld_t2
+        #     wandb.log({"kld_t2_proto": kld_t2})
+        
+
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += self.lemda_mse * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
-        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 100 * kld_t2
-            wandb.log({"kld_t2_proto": kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += self.lemda_ce * cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
@@ -440,10 +449,7 @@ class Ours(TTAMethod):
             l2_sp = loss_l2_sp(self.model_s)
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
-        if "differ_loss" in self.cfg.Ours.LOSSES:
-            # loss_stu += loss_differential
-            wandb.log({"differ_loss": loss_differential})
-
+        
         outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
@@ -459,71 +465,73 @@ class Ours(TTAMethod):
         Returns:
             Tensor: Model predictions
         """
-        if self.mixed_precision and self.device == "cuda":
-            with torch.cuda.amp.autocast():
-                outputs, loss, _ = self.loss_calculation(x)
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad()
-        else:
-            with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2 = self.loss_calculation(x, y)
+        t_steps = 1
+        for i in range(t_steps):
+            if self.mixed_precision and self.device == "cuda":
+                with torch.cuda.amp.autocast():
+                    outputs, loss, _ = self.loss_calculation(x)
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad()
+            else:
+                with torch.amp.autocast("cuda"):
+                    outputs, loss_stu, loss_t2 = self.loss_calculation(x, y)
 
-                self.optimizer_s.zero_grad()
-                loss_stu.backward()
-                self.optimizer_s.step()
-                # Update learning rate
-                #self.scheduler.step()
+                    self.optimizer_s.zero_grad()
+                    loss_stu.backward()
+                    self.optimizer_s.step()
+                    # Update learning rate
+                    #self.scheduler.step()
 
 
-                self.optimizer_backbone_t2.zero_grad()
-                loss_t2.backward()
-                self.optimizer_backbone_t2.step()
+                    self.optimizer_backbone_t2.zero_grad()
+                    loss_t2.backward()
+                    self.optimizer_backbone_t2.step()
 
-        # if self.c % 25 ==0:
-        #     print(loss_stu.item())
+            # if self.c % 25 ==0:
+            #     print(loss_stu.item())
 
-        self.model_t1 = ema_update_model(
-            model_to_update=self.model_t1,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
-        if "ema_t2" in self.cfg.Ours.LOSSES:
-            self.model_t2 = ema_update_model(
-                model_to_update=self.model_t2,
+            self.model_t1 = ema_update_model(
+                model_to_update=self.model_t1,
                 model_to_merge=self.model_s,
                 momentum=self.m_teacher_momentum,
                 device=self.device,
                 update_all=True,
             )
+            if "ema_t2" in self.cfg.Ours.LOSSES:
+                self.model_t2 = ema_update_model(
+                    model_to_update=self.model_t2,
+                    model_to_merge=self.model_s,
+                    momentum=self.m_teacher_momentum,
+                    device=self.device,
+                    update_all=True,
+                )
 
-        if "stochastic_restore" in self.cfg.Ours.LOSSES:
-            # Stochastic restore
-            with torch.no_grad():
-                self.rst = 0.01
-                if self.rst > 0.0:
-                    for nm, m in self.model_t2.named_modules():
-                        for npp, p in m.named_parameters():
-                            if npp in ["weight", "bias"] and p.requires_grad:
-                                mask = (
-                                    (torch.rand(p.shape) < self.rst).float().to(self.device)
-                                )
-                                p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                    1.0 - mask
-                                )
+            if "stochastic_restore" in self.cfg.Ours.LOSSES:
+                # Stochastic restore
+                with torch.no_grad():
+                    self.rst = 0.01
+                    if self.rst > 0.0:
+                        for nm, m in self.model_t2.named_modules():
+                            for npp, p in m.named_parameters():
+                                if npp in ["weight", "bias"] and p.requires_grad:
+                                    mask = (
+                                        (torch.rand(p.shape) < self.rst).float().to(self.device)
+                                    )
+                                    p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                        1.0 - mask
+                                    )
 
-        if "prior_corr" in self.cfg.Ours.LOSSES:
-            with torch.no_grad():
-                if True:
-                    prior = outputs.softmax(1).mean(0)
-                    smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-                        prior
-                    )
-                    smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-                    outputs *= smoothed_prior
+            if "prior_corr" in self.cfg.Ours.LOSSES:
+                with torch.no_grad():
+                    if True:
+                        prior = outputs.softmax(1).mean(0)
+                        smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                            prior
+                        )
+                        smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                        outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs

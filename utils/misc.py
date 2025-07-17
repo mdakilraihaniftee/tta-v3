@@ -167,6 +167,9 @@ def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids.append(torch.where((entropy_ema < entropy_threshold) & (entropy_ema2 > entropy_threshold)))
     filter_ids.append(torch.where((entropy_ema > entropy_threshold) & (entropy_ema2 < entropy_threshold)))
     filter_ids.append(torch.where((entropy_ema > entropy_threshold) & (entropy_ema2 > entropy_threshold)))
+    filter_ids.append(torch.where((entropy_ema < entropy_threshold)))
+    filter_ids.append(torch.where((entropy_ema2 < entropy_threshold)))
+    
 
     return filter_ids
 

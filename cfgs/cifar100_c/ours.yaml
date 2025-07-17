@@ -28,7 +28,7 @@ OPTIM:
   METHOD: Adam
   STEPS: 1
   BETA: 0.9
-  LR: 1e-3
+  LR: 1e-2
   WD: 0.
 Ours:
   lr_t2: 0.001
@@ -38,5 +38,5 @@ Ours:
   pop_reset_epoch: 50
   pq_size: 10
   lemda_mse: 10
-  lemda_im: 2
-  lemda_ce: 1
+  lemda_im: 5
+  lemda_ce: 5

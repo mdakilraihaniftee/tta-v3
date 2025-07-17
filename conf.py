@@ -215,6 +215,8 @@ _C.Ours.pq_size = 10
 _C.Ours.lr_t2 =0.001
 _C.Ours.lemda_mse = 10
 _C.Ours.lemda_im = 2
+_C.Ours.lemda_ce = 1
+
 
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()

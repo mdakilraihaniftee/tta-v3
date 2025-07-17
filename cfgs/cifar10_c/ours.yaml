@@ -39,3 +39,4 @@ Ours:
   pq_size: 10
   lemda_mse: 10
   lemda_im: 2
+  lemda_ce: 1

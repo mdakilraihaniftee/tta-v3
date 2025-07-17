@@ -56,12 +56,17 @@ class Ours(TTAMethod):
         self.pop_reset_epoch = cfg.Ours.pop_reset_epoch
         self.lr_t2 = cfg.Ours.lr_t2
         self.lemda_mse= cfg.Ours.lemda_mse
+        self.lemda_ce = cfg.Ours.lemda_ce
+        self.lemda_im  = cfg.Ours.lemda_im 
+        
 
         
 
 
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
+        self.tta_transform = get_tta_transforms(self.img_size, padding_mode="reflect", cotta_augs=False)
+
 
         # setup loss functions
         self.symmetric_cross_entropy = SymmetricCrossEntropy()
@@ -424,10 +429,10 @@ class Ours(TTAMethod):
             # loss_t2 += 100 * kld_t2
             wandb.log({"kld_t2_proto": kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2
+            loss_t2 += self.lemda_ce * cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 2 * im_loss
+            loss_t2 += self.lemda_ce * im_loss
             wandb.log({"im_loss": im_loss})
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
@@ -476,8 +481,8 @@ class Ours(TTAMethod):
                 loss_t2.backward()
                 self.optimizer_backbone_t2.step()
 
-        if self.c % 25 ==0:
-            print(loss_stu.item())
+        # if self.c % 25 ==0:
+        #     print(loss_stu.item())
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,

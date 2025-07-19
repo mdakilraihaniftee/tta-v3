@@ -9,6 +9,44 @@ import wandb
 
 logger = logging.getLogger(__name__)
 
+import numpy as np
+import torch
+
+
+
+def compute_tta_composite_score(accuracy_list, k=3, alpha=0.8, lambda_std=1.0):
+    """
+    Compute a composite score for Test-Time Adaptation performance.
+    """
+    # If input is a list of tensors, convert to CPU floats
+    if isinstance(accuracy_list[0], torch.Tensor):
+        acc = np.array([a.item() if a.device.type == 'cpu' else a.cpu().item() for a in accuracy_list])
+    else:
+        acc = np.array(accuracy_list)
+
+    # Moving average
+    ma = np.convolve(acc, np.ones(k)/k, mode='valid')
+    
+    # Threshold for plateau
+    threshold = alpha * np.max(acc)
+    
+    # Time to plateau (first index where MA >= threshold)
+    plateau_indices = np.where(ma >= threshold)[0]
+    time_to_plateau = int(plateau_indices[0]) if len(plateau_indices) > 0 else len(ma)
+
+    # Average Positive Slope (APS)
+    diffs = np.diff(ma)
+    positive_diffs = diffs[diffs > 0]
+    avg_positive_slope = float(np.mean(positive_diffs)) if len(positive_diffs) > 0 else 0.0
+
+    # Stability (STD of MA)
+    stability_std = float(np.std(ma))
+
+    # Composite Score
+    composite_score = (avg_positive_slope / (time_to_plateau + 1e-5)) - lambda_std * stability_std
+
+    return composite_score
+
 
 def calculate_classwise_accuracy(labels, predictions, num_classes):
     # Initialize a list to store accuracy for each class
@@ -92,6 +130,7 @@ def get_accuracy(model: torch.nn.Module,
 
     num_correct = 0.
     num_samples = 0
+    accu_li = []
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             imgs, labels = data[0], data[1]
@@ -134,6 +173,7 @@ def get_accuracy(model: torch.nn.Module,
 
             num_c = (predictions == labels.to(device)).float().sum()
             acc = num_c/predictions.shape[0]
+            accu_li.append(acc)
             # print(acc)
             wandb.log({"accuracy": acc})
             num_correct += num_c
@@ -148,7 +188,9 @@ def get_accuracy(model: torch.nn.Module,
 
             if dataset_name == "ccc" and num_samples >= 7500000:
                 break
+    
+    c_score = compute_tta_composite_score(accu_li, k=3)
 
     accuracy = num_correct.item() / num_samples
-    return accuracy, domain_dict, num_samples
+    return accuracy, domain_dict, num_samples, c_score
 

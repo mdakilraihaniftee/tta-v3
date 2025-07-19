@@ -192,6 +192,8 @@ def evaluate(description):
     errs = []
     errs_5 = []
     domain_dict = {}
+    adap_rate =[]
+
 
     # start evaluation
     for i_dom, domain_name in enumerate(domain_seq_loop):
@@ -229,7 +231,7 @@ def evaluate(description):
                 logger.info(f"Using the following data transformation:\n{test_data_loader.dataset.transform}")
 
             # evaluate the model
-            acc, domain_dict, num_samples = get_accuracy(
+            acc, domain_dict, num_samples, c_score = get_accuracy(
                 model,
                 data_loader=test_data_loader,
                 dataset_name=cfg.CORRUPTION.DATASET,
@@ -240,6 +242,8 @@ def evaluate(description):
                 device=device
             )
 
+            adap_rate.append(c_score)
+
             err = 1. - acc
             errs.append(err)
             if severity == 5 and domain_name != "none":
@@ -247,6 +251,9 @@ def evaluate(description):
 
             logger.info(f"{cfg.CORRUPTION.DATASET} error % [{domain_name}{severity}][#samples={num_samples}]: {err:.2%}")
 
+    
+    
+    
     if cfg.SETTING == "continual_mixed_domain":
         i_dom, domain_name = 0, 'mixed'
 
@@ -275,7 +282,7 @@ def evaluate(description):
                 logger.info(f"Using the following data transformation:\n{test_data_loader.dataset.transform}")
 
             # evaluate the model
-            acc, domain_dict, num_samples = get_accuracy(
+            acc, domain_dict, num_samples, c_score = get_accuracy(
                 model,
                 data_loader=test_data_loader,
                 dataset_name=cfg.CORRUPTION.DATASET,
@@ -308,7 +315,10 @@ def evaluate(description):
     print("priority queue size ", cfg.Ours.pq_size)
     print("*"*50)
 
-    
+    print(adap_rate)
+    normalized_scores = min_max_normalize(adap_rate)
+    print(normalized_scores)
+
 
     if cfg.TEST.DEBUG:
         print_memory_info()
@@ -318,6 +328,16 @@ def evaluate(description):
     # save the ckpt to wandb
     wandb.save(cfg.CKPT_DIR)
     wandb.finish()
+
+def min_max_normalize(scores):
+    scores = np.array(scores)
+    min_val = scores.min()
+    max_val = scores.max()
+    if max_val == min_val:
+        return np.zeros_like(scores)  # Avoid division by zero
+    normalized = (scores - min_val) / (max_val - min_val)
+    return normalized.tolist()
+
 
 if __name__ == '__main__':
     

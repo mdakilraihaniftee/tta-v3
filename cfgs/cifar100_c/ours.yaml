@@ -37,6 +37,6 @@ Ours:
   confidence_threshold: 0.5
   pop_reset_epoch: 50
   pq_size: 10
-  lemda_mse: 10
-  lemda_im: 5
-  lemda_ce: 5
+  lemda_mse: 1
+  lemda_im: 1
+  lemda_ce: 1

@@ -19,10 +19,14 @@ from methods.tent import Tent
 from methods.tpt import TPT
 from methods.ttaug import TTAug
 from methods.vte import VTE
+from methods.palm import PALM
+from methods.obao import OBAO
+
+
 
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
     'CoTTA', 'RMT', 'SANTA', 'RoTTA', 'AdaContrast', 'GTTA',
     'LAME', 'MEMO', 'Tent', 'EATA', 'SAR', 'RPL', 'ROID',
-    'CMF', 'DeYO', 'VTE', 'TPT', 'Ours'
+    'CMF', 'DeYO', 'VTE', 'TPT', 'PALM', 'Ours', 'OBAO'
 ]

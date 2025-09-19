@@ -64,6 +64,30 @@ _C.DESC = ""
 # _C.CFG_DEST = "cfg.yaml"
 
 
+#----palm options -------------
+_C.PALM = CfgNode()
+_C.PALM.BETA3 = 0.1
+_C.PALM.TEMP = 100.0
+_C.PALM.THRESH = 0.5
+_C.PALM.LAMBDA = 0.1
+
+
+# --------------------------------- OBAO options ----------------------------- #
+_C.OBAO = CfgNode()
+_C.OBAO.LAMBDA_CE_SRC = 0.0          # Lambda for source replay. Set to 0 since we are targeted at source-free buffer
+_C.OBAO.LAMBDA_CE_TRG = 1.0          # Lambda for self-training
+_C.OBAO.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean teacher warm-up
+_C.OBAO.LAMBDA_CE_LOW_ENT = 0.0      # Lambda for buffer repaly loss
+_C.OBAO.LAMBDA_CRP = 200.0
+_C.OBAO.BUFFER_SIZE = 1000
+_C.OBAO.BUFFER_BS_SIZE = 200
+_C.OBAO.ORG_CLASS_RELATION_FORM = "proto" # choice: "proto" or "weight"
+_C.OBAO.CLASS_RELATION_TYPE = "cos"
+_C.OBAO.CLASS_RELATION_LOSS_TYPE = "t"  # m: MSE loss; t: topology loss
+_C.OBAO.E_MARGIN = 0.1               # margin used for filtering
+_C.OBAO.RST = 0.0                    # Restore probability
+
+
 # ----------------------------- Model options ------------------------------- #
 _C.MODEL = CfgNode()
 
